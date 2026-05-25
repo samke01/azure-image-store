@@ -1,0 +1,2 @@
+# App-specific variable values go here as resources are added in Part II.
+# Shared values (subscription_id, location, tags) come from ../common.tfvars.
