@@ -1,0 +1,6 @@
+# Bootstrap-specific values — copy to terraform.tfvars and fill in your values.
+# Shared values (subscription_id, location, tags) come from ../common.tfvars.
+
+resource_group_name  = "tfstate-rg"
+storage_account_name = "tfstatestore01"   # must be globally unique, lowercase, 3-24 chars
+container_name       = "tfstate"
