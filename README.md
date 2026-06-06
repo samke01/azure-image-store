@@ -4,8 +4,8 @@
 
 ```
 project/
-├── common.tfvars.example     # shared values (location, tags) — copy to common.tfvars
-├── set-env.example.ps1       # shared env vars (subscription_id) — copy to set-env.ps1
+├── common.tfvars.example     # shared values (location, tags) - copy to common.tfvars
+├── set-env.example.ps1       # shared env vars (subscription_id) - copy to set-env.ps1
 │
 ├── bootstrap/                # run once to create the tfstate storage account
 │   ├── versions.tf
@@ -16,18 +16,23 @@ project/
 │   ├── outputs.tf
 │   └── terraform.tfvars.example
 │
-└── app/                      # application infrastructure (grows with each part)
+└── app/                      # application infrastructure
     ├── versions.tf
     ├── provider.tf
     ├── backend.tf            # remote state → bootstrap's storage account
     ├── variables.tf
+    ├── resource_group.tf     # application resource group
+    ├── storage.tf            # image storage account + container
+    ├── key_vault.tf          # key vault + access policies + storage secret
+    ├── app_service.tf        # app service plan + linux web app
+    ├── outputs.tf
     ├── set-env.example.ps1   # backend config for terraform init
     └── terraform.tfvars.example
 ```
 
 ---
 
-## Part I — Scope
+## Part I - Scope
 
 **bootstrap/** creates the dedicated infrastructure for storing Terraform remote state:
 
@@ -35,22 +40,31 @@ project/
 - storage account: `samkessprojstate`
 - blob container: `tfstate`
 
-This satisfies the Part I deliverable of a scripted IaC definition.
 Bootstrap runs with local state. It is a one-time setup step.
 
-**app/** is the application project scaffold, wired up to the remote backend.
-Application resources (storage account, key vault, app service) are added in Part II.
+**app/** is the application infrastructure, wired up to the remote backend. Part I
+is the *scripted IaC definition*, so the full set of resources the image
+application needs is defined here in Terraform:
 
-## Part II — Scope
+- resource group for the application - `resource_group.tf`
+- storage account + private `images` container for the uploaded images - `storage.tf`
+- key vault holding the storage connection string as a secret, with access
+  policies for the deployer and the web app's managed identity - `key_vault.tf`
+- Linux app service plan + web app (system-assigned managed identity, Key Vault
+  reference for the storage secret) - `app_service.tf`
 
-Part II extends `app/` with:
+Together with **bootstrap/**, this satisfies the Part I deliverable of a scripted
+IaC definition.
 
-- resource group for the application
-- storage account for image uploads
-- blob container for images
-- key vault for sensitive data
-- app service for the web application
-- build and deployment pipeline
+## Part II - Scope
+
+Part II makes the definition above *runnable* and adds the application on top:
+
+- application code (web page 1 lists blobs with download links, web page 2 is the
+  upload form)
+- the runtime stack pinned in `app_service.tf` (`site_config.application_stack`)
+- a deployment script that pushes the built application to the app service
+- a build / deployment pipeline (YAML)
 
 ---
 
@@ -82,6 +96,8 @@ Terraform authenticates as **my own Azure AD user identity**, established locall
 - The **subscription** is selected via the `TF_VAR_subscription_id` environment variable (`set-env.ps1`), which feeds `subscription_id` in `provider.tf`. It is never hardcoded in `.tf` files or committed to the repository.
 - The identity running `bootstrap/` needs permission to create a resource group and a storage account, for example **Contributor** on the subscription or target resource group.
 - The `azurerm` backend used by `app/` reaches the state blob through the storage account's access key, so the identity running `app/` also needs to read that key. Contributor or a key-listing role on the state storage account is enough.
+- Running `app/` also creates a resource group, storage account, key vault and app service, so that identity needs **Contributor** on the subscription or target resource group. On top of that it must be able to write a Key Vault secret: the `key_vault.tf` access policy grants the deploying identity `Set`/`Get` on secrets for exactly that purpose. Its object ID is provided via `TF_VAR_deployer_object_id` (set in `set-env.ps1` from `az ad signed-in-user show`), because `data.azurerm_client_config.current.object_id` comes back empty under Azure CLI login.
+- The **web app authenticates with a system-assigned managed identity**, not a stored credential. A second Key Vault access policy grants that identity read access to secrets, so the app resolves the `@Microsoft.KeyVault(...)` reference for the storage connection string at runtime. The connection string therefore never appears in app settings or the repository in clear text.
 
 ---
 
@@ -133,7 +149,16 @@ cp set-env.example.ps1 set-env.ps1
 
 . .\set-env.ps1          # configures backend for terraform init
 terraform init
+
+cp terraform.tfvars.example terraform.tfvars
+# edit terraform.tfvars with your app resource names (must be globally unique)
+
+terraform plan  -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars
 ```
+
+> `common.tfvars` is injected automatically by the root `set-env.ps1`
+> (`TF_CLI_ARGS`), so only the folder-specific tfvars is passed here.
 
 ---
 
@@ -145,15 +170,21 @@ terraform init
 
 **app/**
 - remote state is stored in bootstrap's storage account (`samkessprojstate/tfstate/app.tfstate`)
-- application resources are added in Part II
+- the application resource group contains the storage account, key vault and app service
+- the storage account contains the private `images` container
+- the storage account's connection string is stored as a secret in the key vault
+- the web app reads that secret through a Key Vault reference, resolved at runtime
+  by its **system-assigned managed identity**
+- two key vault access policies grant secret access: one to the deploying identity
+  (to write the secret) and one to the web app's managed identity (to read it)
 
 ---
 
 ## Variable Split
 
-| Variable | Where it comes from |
-|---|---|
-| `subscription_id` | `TF_VAR_subscription_id` env var (`set-env.ps1`) |
-| `location` | `common.tfvars` |
-| `tags` | `common.tfvars` |
-| Resource names | local `terraform.tfvars` per subfolder (added in Part II) |
+| Variable                                                                                                | Where it comes from                              |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `subscription_id`                                                                                       | `TF_VAR_subscription_id` env var (`set-env.ps1`) |
+| `location`                                                                                              | `common.tfvars`                                  |
+| `tags`                                                                                                  | `common.tfvars`                                  |
+| Resource names (`resource_group_name`, `storage_account_name`, `key_vault_name`, `app_service_name`, …) | local `terraform.tfvars` per subfolder           |
