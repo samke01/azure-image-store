@@ -7,6 +7,10 @@
 # --- Shared ---
 $env:TF_VAR_subscription_id = "00000000-0000-0000-0000-000000000000"
 
+# Object ID of the signed-in user — granted key vault secret access in app/.
+# Fetched from the CLI because azurerm_client_config returns an empty object_id under az login.
+$env:TF_VAR_deployer_object_id = az ad signed-in-user show --query id -o tsv
+
 # --- Automatically append common.tfvars for plan and apply in any subfolder ---
 $env:TF_CLI_ARGS_plan  = "-var-file=../common.tfvars"
 $env:TF_CLI_ARGS_apply = "-var-file=../common.tfvars"
