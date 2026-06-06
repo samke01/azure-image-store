@@ -1,2 +1,19 @@
-# App-specific variable values go here as resources are added in Part II.
+# App-specific values - copy to terraform.tfvars and fill in your values.
 # Shared values (subscription_id, location, tags) come from ../common.tfvars.
+
+resource_group_name = "clouddevops-app-rg"
+
+# Globally unique, lowercase, 3-24 chars, alphanumeric only.
+storage_account_name  = "samkessprojimages"
+images_container_name = "images"
+
+# Globally unique, 3-24 chars.
+key_vault_name = "samkessproj-kv"
+
+app_service_plan_name = "clouddevops-app-plan"
+
+# Globally unique - becomes <name>.azurewebsites.net.
+app_service_name = "samkessproj-app"
+
+# F1 = free (sleeps when idle, 60 CPU-min/day). B1 (~€13/mo) for always-on.
+app_service_sku = "F1"
