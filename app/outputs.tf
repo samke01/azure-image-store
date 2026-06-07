@@ -18,7 +18,7 @@ output "key_vault_name" {
   value       = azurerm_key_vault.main.name
 }
 
-output "app_service_default_hostname" {
-  description = "Default hostname of the web app (web page 1 / web page 2)."
+output "app_service_url" {
+  description = "Public URL of the web app (web page 1 / web page 2)."
   value       = "https://${azurerm_linux_web_app.main.default_hostname}"
 }

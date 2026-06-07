@@ -14,7 +14,7 @@ resource "azurerm_service_plan" "main" {
 resource "azurerm_linux_web_app" "main" {
   name                = var.app_service_name
   resource_group_name = azurerm_resource_group.app.name
-  location            = azurerm_service_plan.main.location
+  location            = azurerm_resource_group.app.location
   service_plan_id     = azurerm_service_plan.main.id
   https_only          = true
 
