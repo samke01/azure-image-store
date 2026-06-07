@@ -2,20 +2,21 @@
 # deployer permission to write secrets into the vault.
 data "azurerm_client_config" "current" {}
 
-# Key Vault for sensitive data. The storage account's connection string is the secret the web app needs.
-# Keeping it here means it never lands in app settings or source control in clear text.
+# Key Vault for sensitive data. The storage account's connection string is
+# the secret the web app needs; keeping it here means it never lands in app
+# settings or source control in clear text.
 resource "azurerm_key_vault" "main" {
   name                = var.key_vault_name
   resource_group_name = azurerm_resource_group.app.name
   location            = azurerm_resource_group.app.location
-  tenant_id           = data.azurerm_client_config.current.tenant_id # reads from the deploying identity
+  tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = "standard"
 
-  # Coursework defaults: soft-delete on (minimum 7 days), purge protection off so the vault can be fully torn down with `terraform destroy`.
+  # Coursework defaults: soft-delete on (minimum 7 days), purge protection off
+  # so the vault can be fully torn down with `terraform destroy`.
   soft_delete_retention_days = 7
   purge_protection_enabled   = false
-
-  tags = var.tags
+  tags                       = var.tags
 }
 
 # The deploying identity needs to create/read the secret below.
@@ -38,7 +39,8 @@ resource "azurerm_key_vault_access_policy" "app" {
   secret_permissions = ["Get", "List"]
 }
 
-# Storage connection string stored as a secret. The web app references it by URI (see app_service.tf) instead of receiving the value directly.
+# Storage connection string stored as a secret. The web app references it by
+# URI (see app_service.tf) instead of receiving the value directly.
 resource "azurerm_key_vault_secret" "storage_connection_string" {
   name         = "storage-connection-string"
   value        = azurerm_storage_account.images.primary_connection_string

@@ -1,4 +1,4 @@
-# Shared — provided via ../common.tfvars and TF_VAR_subscription_id env var
+# --- Shared (provided via ../common.tfvars and TF_VAR_subscription_id) ---
 
 variable "subscription_id" {
   type        = string
@@ -21,7 +21,7 @@ variable "tags" {
 
 variable "deployer_object_id" {
   type        = string
-  description = "Object ID of the identity running Terraform; granted secret-write access on the key vault. Get it with: az ad signed-in-user show --query id -o tsv"
+  description = "Object ID of the identity running Terraform, granted secret-write access on the key vault (get it with: az ad signed-in-user show --query id -o tsv)."
 }
 
 # --- App-specific (provided via terraform.tfvars) ---
@@ -54,7 +54,7 @@ variable "app_service_plan_name" {
 
 variable "app_service_name" {
   type        = string
-  description = "Name of the web app (globally unique — forms part of *.azurewebsites.net)."
+  description = "Name of the web app (globally unique, becomes part of *.azurewebsites.net)."
 }
 
 variable "app_service_sku" {
