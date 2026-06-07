@@ -23,7 +23,8 @@ project/
     ├── variables.tf
     ├── resource_group.tf     # application resource group
     ├── storage.tf            # image storage account + container
-    ├── key_vault.tf          # key vault + access policies + storage secret
+    ├── random.tf             # random suffix for globally unique names
+    ├── key_vault.tf          # key vault (RBAC) + role assignments + storage secret
     ├── app_service.tf        # app service plan + linux web app
     ├── outputs.tf
     ├── set-env.example.ps1   # backend config for terraform init
@@ -48,8 +49,10 @@ application needs is defined here in Terraform:
 
 - resource group for the application - `resource_group.tf`
 - storage account + private `images` container for the uploaded images - `storage.tf`
-- key vault holding the storage connection string as a secret, with access
-  policies for the deployer and the web app's managed identity - `key_vault.tf`
+- a `random_string` suffix appended to the globally unique names (storage
+  account, key vault, web app) so they never collide - `random.tf`
+- key vault (RBAC-authorized) holding the storage connection string as a secret,
+  with role assignments for the deployer and the web app's managed identity - `key_vault.tf`
 - Linux app service plan + web app (system-assigned managed identity, Key Vault
   reference for the storage secret) - `app_service.tf`
 
@@ -84,8 +87,8 @@ Values are grouped by how widely they are shared and how sensitive they are. `su
 **Why these storage account settings.**
 `Standard` tier with `LRS` replication is the cheapest option and is sufficient for state and coursework, since geo-redundancy is unnecessary here. The security defaults are deliberately strict. `min_tls_version` is `TLS1_2`, traffic is HTTPS-only, and `allow_nested_items_to_be_public` is `false` so no blob can be exposed publicly by accident.
 
-**Versions.**
-The `azurerm` provider is pinned to `~> 3.0.2` to match the course examples (`3 - storageaccount - remote state`) and keep behaviour reproducible. `required_version` is set to `>= 1.6.0`.
+**Why these providers.**
+`azurerm` (`~> 3.0.2`) matches the course examples and keeps behaviour reproducible. `app/` also uses `azuread` to resolve the deploying identity's object ID from the login context (instead of a hand-supplied variable), `random` to generate the unique-name suffix, and `time` to wait out the eventual consistency of RBAC role assignments before writing the Key Vault secret. `required_version` is set to `>= 1.6.0`.
 
 ---
 
@@ -96,8 +99,9 @@ Terraform authenticates as **my own Azure AD user identity**, established locall
 - The **subscription** is selected via the `TF_VAR_subscription_id` environment variable (`set-env.ps1`), which feeds `subscription_id` in `provider.tf`. It is never hardcoded in `.tf` files or committed to the repository.
 - The identity running `bootstrap/` needs permission to create a resource group and a storage account, for example **Contributor** on the subscription or target resource group.
 - The `azurerm` backend used by `app/` reaches the state blob through the storage account's access key, so the identity running `app/` also needs to read that key. Contributor or a key-listing role on the state storage account is enough.
-- Running `app/` also creates a resource group, storage account, key vault and app service, so that identity needs **Contributor** on the subscription or target resource group. On top of that it must be able to write a Key Vault secret: the `key_vault.tf` access policy grants the deploying identity `Set`/`Get` on secrets for exactly that purpose. Its object ID is provided via `TF_VAR_deployer_object_id` (set in `set-env.ps1` from `az ad signed-in-user show`), because `data.azurerm_client_config.current.object_id` comes back empty under Azure CLI login.
-- The **web app authenticates with a system-assigned managed identity**, not a stored credential. A second Key Vault access policy grants that identity read access to secrets, so the app resolves the `@Microsoft.KeyVault(...)` reference for the storage connection string at runtime. The connection string therefore never appears in app settings or the repository in clear text.
+- Running `app/` also creates a resource group, storage account, key vault and app service. The key vault is **RBAC-authorized**, and access is granted through `azurerm_role_assignment` rather than access policies. The deploying identity gets **Key Vault Secrets Officer** so it can write the secret; the deployer's object ID is read **from the login context** via `data.azuread_client_config.current.object_id` (no manual variable). Because creating role assignments requires `Microsoft.Authorization/roleAssignments/write`, the identity running `app/` needs **Owner** or **User Access Administrator** on the scope (Contributor alone is not enough for the role assignments).
+- The **web app authenticates with a system-assigned managed identity**, not a stored credential. It is granted **Key Vault Secrets User** (read-only), so it resolves the `@Microsoft.KeyVault(...)` reference for the storage connection string at runtime. The connection string therefore never appears in app settings or the repository in clear text.
+- RBAC grants are eventually consistent, so a `time_sleep` waits ~60s after the deployer's role assignment before the secret is written, avoiding a transient 403 on first apply.
 
 ---
 
@@ -105,7 +109,7 @@ Terraform authenticates as **my own Azure AD user identity**, established locall
 
 Before running anything, you need:
 
-- An **Azure subscription** with rights to create resource groups and storage accounts.
+- An **Azure subscription** with rights to create resource groups and storage accounts. For `app/`, because the key vault grants access via RBAC role assignments, the identity also needs **Owner** or **User Access Administrator** on the target scope (not just Contributor).
 - **Azure CLI** installed and signed in via `az login` (and `az account set` if you have more than one subscription).
 - **Terraform ≥ 1.6.0** on your `PATH`.
 - **PowerShell**, because the helper scripts `set-env.ps1` are written for PowerShell.
@@ -151,7 +155,8 @@ cp set-env.example.ps1 set-env.ps1
 terraform init
 
 cp terraform.tfvars.example terraform.tfvars
-# edit terraform.tfvars with your app resource names (must be globally unique)
+# edit terraform.tfvars with your app resource base names
+# (a random suffix is appended to the globally unique ones)
 
 terraform plan  -var-file=terraform.tfvars
 terraform apply -var-file=terraform.tfvars
@@ -175,8 +180,9 @@ terraform apply -var-file=terraform.tfvars
 - the storage account's connection string is stored as a secret in the key vault
 - the web app reads that secret through a Key Vault reference, resolved at runtime
   by its **system-assigned managed identity**
-- two key vault access policies grant secret access: one to the deploying identity
-  (to write the secret) and one to the web app's managed identity (to read it)
+- the key vault uses RBAC: a **Key Vault Secrets Officer** role assignment lets the
+  deployer write the secret, and a **Key Vault Secrets User** assignment lets the
+  web app's managed identity read it
 
 ---
 
