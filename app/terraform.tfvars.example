@@ -3,16 +3,17 @@
 
 resource_group_name = "clouddevops-app-rg"
 
-# Globally unique, lowercase, 3-24 chars, alphanumeric only.
+# Base names - a random suffix is appended for global uniqueness.
+# Storage: lowercase, base <= 19 chars (result must stay within 24).
 storage_account_name  = "samkessprojimages"
 images_container_name = "images"
 
-# Globally unique, 3-24 chars.
+# Base name (<= 18 chars); a random suffix is appended.
 key_vault_name = "samkessproj-kv"
 
 app_service_plan_name = "clouddevops-app-plan"
 
-# Globally unique - becomes <name>.azurewebsites.net.
+# Base name; the result becomes <name>-<suffix>.azurewebsites.net.
 app_service_name = "samkessproj-app"
 
 # F1 = free (sleeps when idle, 60 CPU-min/day). B1 (~€13/mo) for always-on.

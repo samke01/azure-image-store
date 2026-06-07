@@ -2,7 +2,7 @@
 # Same strict, low-cost settings as the bootstrap state account:
 # Standard/LRS, TLS 1.2, HTTPS-only, no public blob access.
 resource "azurerm_storage_account" "images" {
-  name                            = var.storage_account_name
+  name                            = "${var.storage_account_name}${random_string.suffix.result}"
   resource_group_name             = azurerm_resource_group.app.name
   location                        = azurerm_resource_group.app.location
   account_tier                    = "Standard"

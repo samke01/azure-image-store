@@ -12,7 +12,7 @@ resource "azurerm_service_plan" "main" {
 # It authenticates to Key Vault and Storage with a system-assigned managed
 # identity, so no secret is ever placed in configuration in clear text.
 resource "azurerm_linux_web_app" "main" {
-  name                = var.app_service_name
+  name                = "${var.app_service_name}-${random_string.suffix.result}"
   resource_group_name = azurerm_resource_group.app.name
   location            = azurerm_resource_group.app.location
   service_plan_id     = azurerm_service_plan.main.id

@@ -17,13 +17,6 @@ variable "tags" {
   default     = {}
 }
 
-# --- Identity (provided via TF_VAR_deployer_object_id env var) ---
-
-variable "deployer_object_id" {
-  type        = string
-  description = "Object ID of the identity running Terraform, granted secret-write access on the key vault (get it with: az ad signed-in-user show --query id -o tsv)."
-}
-
 # --- App-specific (provided via terraform.tfvars) ---
 
 variable "resource_group_name" {
@@ -33,7 +26,7 @@ variable "resource_group_name" {
 
 variable "storage_account_name" {
   type        = string
-  description = "Name of the storage account that holds the uploaded images (globally unique, lowercase, 3-24 chars)."
+  description = "Base name for the images storage account; a random suffix is appended for global uniqueness (lowercase, base <= 19 chars so the result stays within 24)."
 }
 
 variable "images_container_name" {
@@ -44,7 +37,7 @@ variable "images_container_name" {
 
 variable "key_vault_name" {
   type        = string
-  description = "Name of the Key Vault that holds sensitive data (globally unique, 3-24 chars)."
+  description = "Base name for the Key Vault that holds sensitive data; a random suffix is appended for global uniqueness (base <= 18 chars)."
 }
 
 variable "app_service_plan_name" {
@@ -54,7 +47,7 @@ variable "app_service_plan_name" {
 
 variable "app_service_name" {
   type        = string
-  description = "Name of the web app (globally unique, becomes part of *.azurewebsites.net)."
+  description = "Base name for the web app; a random suffix is appended for global uniqueness (becomes part of *.azurewebsites.net)."
 }
 
 variable "app_service_sku" {
