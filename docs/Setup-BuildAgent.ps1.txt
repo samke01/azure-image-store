@@ -1,0 +1,111 @@
+﻿param (
+    [psobject[]] $software = @(
+        (new-object psobject -property @{ install = 1; name = 'terraform'; version = '0.11.13'; 
+            url = 'https://releases.hashicorp.com/terraform/0.11.13/terraform_0.11.13_windows_amd64.zip'; 
+            targetFile = "terraform_0.11.13_windows_amd64.zip"; 
+            installDirectory = "C:\Program Files\Hashicorp\Terraform";
+            installType = "zip" 
+            setPath = 1
+        })
+        , (new-object psobject -property @{ install = 0; name = 'packer'; version = '1.4.0'; 
+            url = 'https://releases.hashicorp.com/packer/1.4.0/packer_1.4.0_windows_amd64.zip'
+            targetFile = "packer_1.4.0_windows_amd64.zip"; 
+            installDirectory = "C:\Program Files\Hashicorp\Packer";
+            installType = "zip" 
+            setPath = 1
+        })
+        , (new-object psobject -property @{ install = 1; name = 'devopsagent'; version = '2.150.3'; 
+            # https://vstsagentpackage.azureedge.net/agent/2.150.3/vsts-agent-win-x64-2.150.3.zip
+            url = 'https://download.agent.dev.azure.com/agent/2.150.3/vsts-agent-win-x64-2.150.3.zip' 
+            targetFile = "vsts-agent-win-x64-2.150.3.zip"; 
+            installDirectory = "C:\Program Files\Microsoft\DevopsAgent"; 
+            installType = "devopsagent" 
+            configureFile = "C:\Program Files\Microsoft\DevopsAgent\config.cmd"
+            installedFile = "C:\Program Files\Microsoft\DevopsAgent\config.log"
+            work = ""
+            pool = ""
+            organization = ""
+            token = ""
+            agentsuffix = "_agent"
+            setPath = 0
+        })
+        , (new-object psobject -property @{ install = 1; name = 'azurecli'; version = ''; 
+            url = 'https://aka.ms/installazurecliwindows' 
+            targetFile = "azure-cli.msi"; 
+            installDirectory = "C:\Program Files\Hashicorp\AzureCLI"; 
+            installType = "msi"
+            setPath = 1
+        })
+    )
+)
+
+$AllProtocols = [System.Net.SecurityProtocolType]'Tls11,Tls12'
+[System.Net.ServicePointManager]::SecurityProtocol = $AllProtocols
+
+$workingdirectory = "C:\temp"
+if ([System.IO.Directory]::Exists($workingdirectory) -eq $false ) {
+    [System.IO.Directory]::CreateDirectory($workingdirectory) | Out-Null
+}
+
+foreach($sw in $software) {
+    if( $sw.install -eq 1 ) {
+        $swinstallDirectory = $sw.installDirectory
+        if( [string]::IsNullOrEmpty($sw.version) -eq $false ) {
+            $swversion = $sw.version.Replace(".", "_")
+            $swinstallDirectory = [System.IO.Path]::Combine($sw.installDirectory, $swversion)
+        }
+
+        if ([System.IO.Directory]::Exists($swinstallDirectory) -eq $false ) {
+            New-Item -Path $swinstallDirectory -ItemType Directory -force -Confirm:$false | Out-Null
+        }
+
+        $tfPath = [System.IO.Path]::Combine($swinstallDirectory, $sw.targetFile);
+        
+        if ( [System.IO.File]::Exists($tfPath) -eq $false ) {
+            Invoke-WebRequest -Uri "$($sw.url)" -OutFile "${tfPath}" 
+
+            if([System.IO.Path]::GetExtension($tfPath) -eq ".zip" ) {
+                Expand-Archive "$tfPath" -DestinationPath "${targetDirectory}" -Force;
+            }
+        }
+
+        if( $env:Path.Contains($swinstallDirectory) -eq $false -and $sw.setPath -eq 1 ) {
+            if( $env:Path.EndsWith(";") -eq $false ) {
+                $env:Path += ";"
+            }
+            $env:Path += "${swInstallDirectory};"
+            [Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Machine)
+        }
+
+        if( $sw.installType -eq "msi") {
+            $execFile = $tfPath        
+            $installedFile = $tfPath + ".txt"
+            
+            if( [System.IO.File]::Exists($installedFile) -eq $false ) {
+                $file = Get-Item "$execFile"
+            
+                $MSIArguments = @(
+                    "/i"
+                    ('"{0}"' -f $file.FullName)
+                    "/qn"
+                    "/norestart"
+                )
+            
+                Start-Process "msiexec.exe" -ArgumentList $MSIArguments
+            
+                "$installedFile" | out-file -FilePath "$installedFile" -Encoding UTF8
+            }
+        }
+
+        if( $sw.installType -eq "devopsagent") {
+            $configureFile = $sw.configureFile
+            $installedFile = $sw.installedFile
+
+            if( [System.IO.File]::Exists($installedFile) -eq $false ) {
+                "${configureFile} --unattended --url $($sw.organisation) --agent ${env:computername}$($sw.agentsuffix) --pool $($sw.Pool) --work $($sw.Work) --token $($sw.Token) --runAsService --auth pat"
+            
+                "$installedFile" | out-file -FilePath "$installedFile" -Encoding UTF8
+            }
+        }
+    }
+}
