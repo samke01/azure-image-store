@@ -23,12 +23,28 @@ $zipPath = Join-Path $env:TEMP "app_deploy.zip"
 
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 
-# Use ZipFile.CreateFromDirectory rather than Compress-Archive. Windows PowerShell 5.1
-# writes backslash separators inside the archive, which break the templates and static
-# subfolders when the App Service unpacks the zip on Linux. CreateFromDirectory writes
-# spec compliant forward slashes, and it puts the contents of src at the zip root.
+# Build the zip with forward-slash entry names so it unpacks correctly on the Linux
+# App Service. Neither Compress-Archive nor ZipFile.CreateFromDirectory does this under
+# Windows PowerShell 5.1: it runs on .NET Framework, whose zip writer uses the OS
+# separator '\', and Linux then treats "templates\index.html" as one flat filename
+# rather than a templates/ folder (Flask 500s with TemplateNotFound). Adding each file
+# with an explicitly normalized name avoids that regardless of host. __pycache__/*.pyc
+# are skipped so stale bytecode never ships.
+Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory("$PSScriptRoot\src", $zipPath)
+$srcRoot = (Resolve-Path "$PSScriptRoot\src").Path
+$archive = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+    Get-ChildItem -Path $srcRoot -Recurse -File |
+        Where-Object { $_.FullName -notmatch '\\__pycache__\\' -and $_.Extension -ne '.pyc' } |
+        ForEach-Object {
+            $entryName = $_.FullName.Substring($srcRoot.Length + 1).Replace('\', '/')
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $_.FullName, $entryName) | Out-Null
+        }
+}
+finally {
+    $archive.Dispose()
+}
 
 az webapp deploy `
     --resource-group $rgName `
