@@ -19,9 +19,28 @@ ACCOUNT_NAME = os.environ["STORAGE_ACCOUNT_NAME"]
 CONTAINER_NAME = os.environ["IMAGES_CONTAINER_NAME"]
 ACCOUNT_URL = f"https://{ACCOUNT_NAME}.blob.core.windows.net"
 
+# Extensions the browser can render inline, used to decide whether a blob gets a
+# thumbnail and lightbox preview rather than a generic file card.
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg", ".avif"}
+
 # Built once at module load and reused across requests, since each construction would otherwise pay a token acquisition round trip.
 credential = DefaultAzureCredential()
 blob_service_client = BlobServiceClient(account_url=ACCOUNT_URL, credential=credential)
+
+
+def _is_image(name):
+    """True when the blob name has an extension a browser can render inline."""
+    return os.path.splitext(name)[1].lower() in IMAGE_EXTENSIONS
+
+
+def _human_size(num_bytes):
+    """Format a byte count as a short human readable string (e.g. '1.2 MB')."""
+    size = float(num_bytes or 0)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024 or unit == "TB":
+            # Whole numbers for bytes, one decimal place for larger units.
+            return f"{int(size)} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
 
 
 @app.route("/")
@@ -45,8 +64,17 @@ def index():
             expiry=datetime.now(timezone.utc) + timedelta(hours=1),
         )
         url = f"{ACCOUNT_URL}/{CONTAINER_NAME}/{blob.name}?{sas}"
-        blobs.append({"name": blob.name, "url": url, "size": blob.size})
+        blobs.append(
+            {
+                "name": blob.name,
+                "url": url,
+                "size": _human_size(blob.size),
+                "is_image": _is_image(blob.name),
+            }
+        )
 
+    # Newest-feeling first: keep images grouped at the top of the gallery.
+    blobs.sort(key=lambda b: (not b["is_image"], b["name"].lower()))
     return render_template("index.html", blobs=blobs)
 
 

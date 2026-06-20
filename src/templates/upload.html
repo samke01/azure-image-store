@@ -1,10 +1,44 @@
 {% extends "base.html" %}
 {% block title %}Upload — Image Store{% endblock %}
+{% block nav_upload %}is-active{% endblock %}
 {% block content %}
-  <h1>Upload a File</h1>
-  <form method="post" enctype="multipart/form-data">
-    <label for="file">Choose file:</label>
-    <input type="file" id="file" name="file" accept="image/*" required>
-    <button type="submit">Upload</button>
+  <div class="page-head">
+    <div>
+      <h1>Upload a file</h1>
+      <p class="subtitle">Preview your image, then send it to the gallery.</p>
+    </div>
+    <a href="{{ url_for('index') }}" class="btn btn-ghost">Back to gallery</a>
+  </div>
+
+  <form class="upload-form" method="post" enctype="multipart/form-data" id="upload-form">
+    <label class="dropzone" id="dropzone">
+      <input type="file" id="file" name="file" accept="image/*" required hidden>
+
+      <div class="dropzone-prompt" id="dropzone-prompt">
+        <span class="dropzone-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"></path>
+          </svg>
+        </span>
+        <p class="dropzone-title">Drag &amp; drop an image here</p>
+        <p class="dropzone-hint">or <span class="dropzone-link">browse</span> your files</p>
+      </div>
+
+      <div class="dropzone-preview" id="dropzone-preview" hidden>
+        <img id="preview-img" src="" alt="Selected image preview">
+        <div class="preview-info">
+          <p class="preview-name" id="preview-name"></p>
+          <p class="preview-size" id="preview-size"></p>
+          <button type="button" class="btn btn-ghost btn-sm" id="clear-btn">Choose a different file</button>
+        </div>
+      </div>
+    </label>
+
+    <button type="submit" class="btn btn-primary btn-block" id="submit-btn" disabled>
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"></path>
+      </svg>
+      Upload to gallery
+    </button>
   </form>
 {% endblock %}

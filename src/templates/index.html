@@ -1,21 +1,98 @@
 {% extends "base.html" %}
-{% block title %}Files — Image Store{% endblock %}
+{% block title %}Gallery — Image Store{% endblock %}
+{% block nav_gallery %}is-active{% endblock %}
 {% block content %}
-  <h1>Uploaded Files</h1>
+  <div class="page-head">
+    <div>
+      <h1>Gallery</h1>
+      <p class="subtitle">
+        {{ blobs | length }} file{{ "" if blobs | length == 1 else "s" }} in storage
+      </p>
+    </div>
+    <a href="{{ url_for('upload') }}" class="btn btn-primary">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"></path>
+      </svg>
+      Upload file
+    </a>
+  </div>
+
   {% if blobs %}
-  <table>
-    <thead><tr><th>File</th><th>Size</th><th></th></tr></thead>
-    <tbody>
-      {% for blob in blobs %}
-      <tr>
-        <td>{{ blob.name }}</td>
-        <td>{{ (blob.size / 1024) | round(1) }} KB</td>
-        <td><a href="{{ blob.url }}">Download</a></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="gallery">
+    {% for blob in blobs %}
+    <article class="card">
+      <div class="card-media">
+        {% if blob.is_image %}
+        <button type="button" class="thumb-btn"
+                data-preview
+                data-url="{{ blob.url }}"
+                data-name="{{ blob.name }}"
+                aria-label="Preview {{ blob.name }}">
+          <img src="{{ blob.url }}" alt="{{ blob.name }}" loading="lazy">
+          <span class="thumb-overlay">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="M21 21l-4.3-4.3M11 8v6M8 11h6"></path>
+            </svg>
+            Preview
+          </span>
+        </button>
+        {% else %}
+        <div class="thumb-file" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <path d="M14 2v6h6"></path>
+          </svg>
+        </div>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <p class="card-name" title="{{ blob.name }}">{{ blob.name }}</p>
+        <p class="card-meta">{{ blob.size }}</p>
+      </div>
+      <div class="card-actions">
+        {% if blob.is_image %}
+        <button type="button" class="btn btn-ghost btn-sm"
+                data-preview
+                data-url="{{ blob.url }}"
+                data-name="{{ blob.name }}">
+          Preview
+        </button>
+        {% endif %}
+        <a class="btn btn-primary btn-sm" href="{{ blob.url }}" download="{{ blob.name }}">
+          Download
+        </a>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
   {% else %}
-  <p class="empty-state">No files uploaded yet. <a href="{{ url_for('upload') }}">Upload one now.</a></p>
+  <div class="empty-state">
+    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+      <path d="M21 15l-5-5L5 21"></path>
+    </svg>
+    <h2>No files yet</h2>
+    <p>Your gallery is empty. Upload an image to get started.</p>
+    <a href="{{ url_for('upload') }}" class="btn btn-primary">Upload your first file</a>
+  </div>
   {% endif %}
+
+  <!-- Lightbox preview, populated and toggled by app.js -->
+  <div class="lightbox" id="lightbox" hidden>
+    <div class="lightbox-backdrop" data-close></div>
+    <figure class="lightbox-content">
+      <button type="button" class="lightbox-close" data-close aria-label="Close preview">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18M6 6l12 12"></path>
+        </svg>
+      </button>
+      <img id="lightbox-img" src="" alt="">
+      <figcaption class="lightbox-bar">
+        <span id="lightbox-name"></span>
+        <a id="lightbox-download" class="btn btn-primary btn-sm" href="" download>Download</a>
+      </figcaption>
+    </figure>
+  </div>
 {% endblock %}
