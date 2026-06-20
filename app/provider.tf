@@ -4,6 +4,5 @@ provider "azurerm" {
   features {}
 }
 
-# Authenticates with the same az login; used to resolve the deploying
-# identity's object ID from context (see key_vault.tf).
+# Authenticates with the same az login. Used to manage the Azure AD deployers group that governs the CI agent permissions (see identity.tf).
 provider "azuread" {}

@@ -8,9 +8,7 @@ resource "azurerm_service_plan" "main" {
   tags                = var.tags
 }
 
-# The web app (web page 1 lists blobs with download links, web page 2 uploads).
-# It authenticates to Key Vault and Storage with a system-assigned managed
-# identity, so no secret is ever placed in configuration in clear text.
+# The web app. Page 1 lists blobs with download links and page 2 uploads. It authenticates to Storage with a system assigned managed identity, so no secret, connection string or account key is ever placed in configuration.
 resource "azurerm_linux_web_app" "main" {
   name                = "${var.app_service_name}-${random_string.suffix.result}"
   resource_group_name = azurerm_resource_group.app.name
@@ -26,15 +24,21 @@ resource "azurerm_linux_web_app" "main" {
     # F1 (free) can't use always_on. Set true on B1+ to stop the app idling.
     always_on = false
 
-    # Runtime stack (e.g. node/python/dotnet) is pinned in Part II once the
-    # application code exists. An empty block keeps the plan valid for now.
+    application_stack {
+      python_version = "3.12"
+    }
   }
 
   app_settings = {
-    # Key Vault reference - resolved at runtime by the app's managed identity, so
-    # the connection string is never stored on the app in clear text.
-    "STORAGE_CONNECTION_STRING" = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.storage_connection_string.versionless_id})"
-    "IMAGES_CONTAINER_NAME"     = azurerm_storage_container.images.name
+    # Only non sensitive values. RBAC governs access, not the secrecy of these names. The app resolves credentials from its managed identity at runtime.
+    "STORAGE_ACCOUNT_NAME"  = azurerm_storage_account.images.name
+    "IMAGES_CONTAINER_NAME" = azurerm_storage_container.images.name
+
+    # Stable Flask session signing key so flash messages survive restarts and workers.
+    "FLASK_SECRET_KEY" = random_password.flask_secret.result
+
+    # Tell Oryx to run `pip install -r requirements.txt` during zip deploy.
+    "SCM_DO_BUILD_DURING_DEPLOYMENT" = "true"
   }
 
   tags = var.tags

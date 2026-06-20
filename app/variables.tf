@@ -35,11 +35,6 @@ variable "images_container_name" {
   default     = "images"
 }
 
-variable "key_vault_name" {
-  type        = string
-  description = "Base name for the Key Vault that holds sensitive data; a random suffix is appended for global uniqueness (base <= 18 chars)."
-}
-
 variable "app_service_plan_name" {
   type        = string
   description = "Name of the Linux App Service plan."
@@ -54,4 +49,11 @@ variable "app_service_sku" {
   type        = string
   description = "SKU of the App Service plan. F1 = free (no always_on); B1+ = paid (supports always_on)."
   default     = "F1"
+}
+
+# CI/CD agent
+
+variable "agent_vm_ssh_public_key" {
+  type        = string
+  description = "SSH public key in OpenSSH format for the self hosted CI agent VM azureuser account. Used only for occasional bootstrap or troubleshooting, since the VM has no public IP and no inbound SSH rule. Never commit the matching private key."
 }
