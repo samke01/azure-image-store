@@ -12,3 +12,13 @@ override.tf.json
 *_override.tf.json
 set-env.ps1
 !set-env.example.ps1
+
+# Agent VM SSH keypair (private key must never be committed)
+clouddevops-agent
+clouddevops-agent.pub
+
+# Python / Flask app
+__pycache__/
+*.pyc
+.venv/
+deploy.zip
