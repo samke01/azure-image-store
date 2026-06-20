@@ -46,11 +46,20 @@ finally {
     $archive.Dispose()
 }
 
+# Ensure the site is running first. After shutdown.ps1 the App Service is stopped, and
+# 'az webapp deploy --async false' then polls "Starting the site..." forever because a
+# stopped site never starts on its own. Starting it here is idempotent if already running.
+az webapp start --resource-group $rgName --name $appName | Out-Null
+
+# --async false waits for the Oryx build to finish. --track-status false skips the
+# post-deploy runtime "Starting the site..." poll, which on Linux App Service frequently
+# hangs for minutes even when the deploy succeeded and the site is already serving.
 az webapp deploy `
     --resource-group $rgName `
     --name $appName `
     --src-path $zipPath `
     --type zip `
-    --async false
+    --async false `
+    --track-status false
 
 Write-Host "Deployed to https://$appName.azurewebsites.net"
