@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Files — Image Store{% endblock %}
+{% block content %}
+  <h1>Uploaded Files</h1>
+  {% if blobs %}
+  <table>
+    <thead><tr><th>File</th><th>Size</th><th></th></tr></thead>
+    <tbody>
+      {% for blob in blobs %}
+      <tr>
+        <td>{{ blob.name }}</td>
+        <td>{{ (blob.size / 1024) | round(1) }} KB</td>
+        <td><a href="{{ blob.url }}">Download</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty-state">No files uploaded yet. <a href="{{ url_for('upload') }}">Upload one now.</a></p>
+  {% endif %}
+{% endblock %}
