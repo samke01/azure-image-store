@@ -1,0 +1,73 @@
+# CI/CD pipeline for the Flask app.
+# It runs on a self hosted agent pool, the VM from app/vm.tf. The Deploy stage authenticates with az login --identity, logging in as the VM user assigned identity. That identity belongs to the clouddevops-deployers AD group, which holds Website Contributor on this one App Service. No service connection, service principal secret or publish profile lives in this file or in Azure DevOps settings.
+
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - src
+      - azure-pipelines.yml
+
+pool:
+  name: clouddevops-agents # self hosted pool, the agent VM from app/vm.tf
+
+# These values come from terraform output after terraform apply. resourceGroup is fixed
+# (resource_group_name in terraform.tfvars). webAppName carries the random name suffix, so it
+# is only known after apply, taken from the host part of terraform output app_service_url.
+# uamiClientId is the agent identity from terraform output agent_identity_client_id, needed
+# because the VM has only a user assigned identity. Set all three as pipeline variables in
+# Azure DevOps under Pipeline, Edit, Variables rather than committing real values here. See the
+# Pipeline variables section in SETUP.md for the mapping.
+variables:
+  webAppName: app-name-with-suffix # for example samkessproj-app-ab12c
+  resourceGroup: clouddevops-app-rg
+  uamiClientId: agent-uami-client-id # GUID from terraform output agent_identity_client_id
+
+stages:
+  - stage: Build
+    displayName: Build
+    jobs:
+      - job: BuildJob
+        displayName: Package the app
+        steps:
+          # No pip install here. The app is shipped as a zip of src and Oryx runs
+          # pip install on the App Service via SCM_DO_BUILD_DURING_DEPLOYMENT.
+          - task: ArchiveFiles@2
+            displayName: Zip src/
+            inputs:
+              rootFolderOrFile: src
+              includeRootFolder: false
+              archiveType: zip
+              archiveFile: $(Build.ArtifactStagingDirectory)/deploy.zip
+              replaceExistingArchive: true
+
+          - task: PublishBuildArtifacts@1
+            displayName: Publish artifact
+            inputs:
+              PathtoPublish: $(Build.ArtifactStagingDirectory)/deploy.zip
+              ArtifactName: drop
+
+  - stage: Deploy
+    displayName: Deploy
+    dependsOn: Build
+    jobs:
+      - deployment: DeployJob
+        displayName: Deploy to App Service
+        pool:
+          name: clouddevops-agents
+        environment: production
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - script: |
+                    az login --identity --username $(uamiClientId)
+                    az webapp deploy \
+                      --resource-group $(resourceGroup) \
+                      --name $(webAppName) \
+                      --src-path $(Pipeline.Workspace)/drop/deploy.zip \
+                      --type zip \
+                      --async false
+                  displayName: Deploy via agent's user-assigned managed identity
