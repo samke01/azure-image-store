@@ -18,6 +18,12 @@ project/
 ├── deploy.ps1                # manual zip deploy of src to the app service
 ├── azure-pipelines.yml       # CI/CD pipeline on a self hosted agent using az login --identity
 │
+├── agent/                    # templates to register the VM as the self hosted agent
+│   ├── setup-agent.sh        # installs the CLI, registers the agent, runs it as a service
+│   ├── register-agent.ps1    # runs setup-agent.sh on the VM via az vm run-command
+│   ├── agent.env.example     # build agent config, copy to agent.env (gitignored, holds the PAT)
+│   └── README.md             # build agent setup guide
+│
 ├── bootstrap/                # run once to create the tfstate storage account
 │   ├── versions.tf
 │   ├── provider.tf
@@ -87,6 +93,7 @@ Part II makes the definition above *runnable* and adds the application on top.
 - the Python runtime pinned in `app_service.tf` (`site_config.application_stack`)
 - a deployment script (`deploy.ps1`) that zips and pushes `src/` to the app service
 - a build and deployment pipeline (`azure-pipelines.yml`)
+- the `agent/` templates that register the provisioned VM as the self hosted agent the pipeline runs on (`setup-agent.sh`, `register-agent.ps1`, see [agent/README.md](agent/README.md))
 - a security pivot away from the Key Vault and connection string pattern to **end to end managed identity**, covering both the app storage access and the CI/CD pipeline deployment access
 
 The reasoning for every choice here, and for the others the assignment left open, is written up in [DOCUMENTATION.md](DOCUMENTATION.md).

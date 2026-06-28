@@ -17,6 +17,9 @@ set-env.ps1
 clouddevops-agent
 clouddevops-agent.pub
 
+# Build agent config (contains a PAT)
+agent/agent.env
+
 # Python / Flask app
 __pycache__/
 *.pyc

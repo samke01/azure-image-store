@@ -71,52 +71,19 @@ which reads the resource group and app name straight from `terraform output`.
 
 ## Self hosted build agent (one time setup)
 
-`terraform apply` in `app/` creates the agent VM, its managed identity, the AD group and the role assignment. It deliberately does **not** install or register the Azure DevOps agent software on the VM. That is a one time manual step run on the VM itself.
+`terraform apply` in `app/` creates the agent VM, its managed identity, the AD group and the role assignment. It deliberately does **not** install or register the Azure DevOps agent software on the VM. That is a one time step, and the `agent/` folder provides the templates to run it. See **[agent/README.md](agent/README.md)** for the full guide; the short version is:
 
-The course provides `docs/Setup-BuildAgent.ps1.txt`, but that script targets a **Windows** agent. It downloads the `win-x64` agent and the Azure CLI MSI and runs the agent as a Windows service. Our `vm.tf` provisions an **Ubuntu 24.04** VM, so the steps below are the Linux equivalent of what that script does. Install the Azure CLI, download and register the Azure DevOps agent, and run it as a service. The fields map straight onto the script's `devopsagent` block.
+```powershell
+cd agent
+cp agent.env.example agent.env
+# edit agent.env: set AZP_URL, AZP_POOL (clouddevops-agents), AZP_TOKEN
 
-| Script field (`Setup-BuildAgent.ps1.txt`) | Linux `./config.sh` flag | Value for this project |
-| ------------------------------------------ | ------------------------ | ---------------------- |
-| `organization`                             | `--url`                  | `https://dev.azure.com/<your-org>` |
-| `pool`                                     | `--pool`                 | `clouddevops-agents`, must match `azure-pipelines.yml` |
-| `token`                                    | `--token`                | a PAT supplied at runtime, never committed |
-| `work`                                     | `--work`                 | `_work` |
-| `agentsuffix`                              | `--agent`                | for example `<hostname>-agent` |
-
-The VM has **no public IP and no inbound SSH rule**, so connect through the **Azure Bastion** or the VM **Serial Console** in the portal, then run the steps below.
-
-```bash
-# 1. Azure CLI. The pipeline needs it for az login --identity and az webapp deploy.
-curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-# 2. Sanity check the managed identity. This must succeed with no secret and no prompt.
-#    Pass the UAMI client ID from terraform output agent_identity_client_id, because the
-#    VM carries a user assigned identity rather than a system assigned one.
-az login --identity --username <UAMI_CLIENT_ID>
-
-# 3. Download the Azure DevOps agent. Copy the exact current version from Azure DevOps under
-#    Organization Settings, Agent Pools, clouddevops-agents, New agent, Linux. Do not hardcode
-#    an old version, since the course script value 2.150.3 is from 2019 and may be rejected.
-mkdir -p ~/myagent && cd ~/myagent
-curl -O https://download.agent.dev.azure.com/agent/<version>/vsts-agent-linux-x64-<version>.tar.gz
-tar zxf vsts-agent-linux-x64-<version>.tar.gz
-
-# 4. Register the agent into the pool the pipeline targets, unattended, using PAT auth.
-./config.sh \
-  --unattended \
-  --url https://dev.azure.com/<your-org> \
-  --auth pat --token <PAT> \
-  --pool clouddevops-agents \
-  --agent "$(hostname)-agent" \
-  --work _work \
-  --acceptTeeEula
-
-# 5. Install and start it as a service so it survives reboots.
-sudo ./svc.sh install
-sudo ./svc.sh start
+./register-agent.ps1
 ```
 
-The **PAT** is the one credential this design does not eliminate. It only grants agent pool registration in Azure DevOps and carries no Azure RBAC, so it is far narrower than the service principal secret it replaces. It is used only here at registration time. The pipeline itself authenticates to Azure with `az login --identity` and stores no secret.
+`register-agent.ps1` reads `agent.env`, resolves the VM from `terraform output`, and runs `setup-agent.sh` on it through `az vm run-command`, so it works even though the VM has **no public IP and no inbound SSH rule**. The script installs the Azure CLI, downloads and registers the Azure DevOps agent into the pool, and runs it as a service. `setup-agent.sh` is the Linux equivalent of the course's Windows `docs/Setup-BuildAgent.ps1.txt`, which targets a `win-x64` agent.
+
+The **PAT** (configured as `AZP_TOKEN`) is the one credential this design does not eliminate. It only grants agent pool registration in Azure DevOps and carries no Azure RBAC, so it is far narrower than the service principal secret it replaces, and it is used only here at registration time. The pipeline itself authenticates to Azure with `az login --identity` and stores no secret.
 
 Once the agent shows **online** in the pool the pipeline in `azure-pipelines.yml` runs on it, and `deploy.ps1` deploys from your own machine independently of the agent.
 
