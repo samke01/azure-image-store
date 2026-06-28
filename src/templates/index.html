@@ -62,6 +62,15 @@
         <a class="btn btn-primary btn-sm" href="{{ blob.url }}" download="{{ blob.name }}">
           Download
         </a>
+        <form method="post" action="{{ url_for('delete') }}" data-confirm="Delete '{{ blob.name }}'? This cannot be undone.">
+          <input type="hidden" name="name" value="{{ blob.name }}">
+          <button type="submit" class="btn btn-danger btn-sm btn-icon" aria-label="Delete {{ blob.name }}">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+              <path d="M10 11v6M14 11v6"></path>
+            </svg>
+          </button>
+        </form>
       </div>
     </article>
     {% endfor %}

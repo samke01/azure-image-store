@@ -47,6 +47,16 @@
     });
   }
 
+  /* ---------- Confirm destructive actions (delete) ---------- */
+  // Forms with data-confirm prompt before submitting. Progressive enhancement:
+  // without JS the delete still works, just without the prompt.
+  document.addEventListener("submit", function (e) {
+    const form = e.target.closest("[data-confirm]");
+    if (form && !window.confirm(form.dataset.confirm || "Are you sure?")) {
+      e.preventDefault();
+    }
+  });
+
   /* ---------- Upload preview ---------- */
   const form = document.getElementById("upload-form");
   if (form) {

@@ -9,6 +9,7 @@ import io
 from unittest.mock import MagicMock, patch
 
 import pytest
+from azure.core.exceptions import ResourceNotFoundError
 
 import app as appmod
 
@@ -134,3 +135,42 @@ def test_upload_post_without_file_flashes_and_redirects(client):
     assert resp.headers["Location"].endswith("/upload")
     # Nothing is written to storage when no file was provided.
     bsc.get_blob_client.assert_not_called()
+
+
+# ---- Delete route -----------------------------------------------------------
+
+def test_delete_post_removes_blob_and_redirects(client):
+    blob_client = MagicMock()
+
+    with patch.object(appmod, "blob_service_client") as bsc:
+        bsc.get_blob_client.return_value = blob_client
+        resp = client.post("/delete", data={"name": "cat.png"})
+
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/")
+    bsc.get_blob_client.assert_called_once_with(
+        container=appmod.CONTAINER_NAME, blob="cat.png"
+    )
+    blob_client.delete_blob.assert_called_once()
+
+
+def test_delete_post_without_name_does_nothing(client):
+    with patch.object(appmod, "blob_service_client") as bsc:
+        resp = client.post("/delete", data={})
+
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/")
+    bsc.get_blob_client.assert_not_called()
+
+
+def test_delete_missing_blob_is_handled(client):
+    blob_client = MagicMock()
+    blob_client.delete_blob.side_effect = ResourceNotFoundError("gone")
+
+    with patch.object(appmod, "blob_service_client") as bsc:
+        bsc.get_blob_client.return_value = blob_client
+        # Should not raise; the route catches ResourceNotFoundError and flashes.
+        resp = client.post("/delete", data={"name": "ghost.png"})
+
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/")

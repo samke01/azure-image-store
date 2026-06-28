@@ -6,6 +6,7 @@ All access is managed identity based. DefaultAzureCredential() uses the App Serv
 import os
 from datetime import datetime, timedelta, timezone
 
+from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
 from flask import Flask, render_template, request, redirect, url_for, flash
@@ -97,6 +98,27 @@ def upload():
         return redirect(url_for("index"))
 
     return render_template("upload.html")
+
+
+@app.route("/delete", methods=["POST"])
+def delete():
+    """Delete a blob from the images container."""
+    name = request.form.get("name")
+    if not name:
+        flash("No file specified.", "error")
+        return redirect(url_for("index"))
+
+    try:
+        blob_service_client.get_blob_client(
+            container=CONTAINER_NAME, blob=name
+        ).delete_blob()
+        flash(f"Deleted '{name}'.", "success")
+    except ResourceNotFoundError:
+        # Already gone (e.g. deleted in another tab). Report it instead of 500ing.
+        flash(f"'{name}' no longer exists.", "error")
+
+    # Redirect after POST so a refresh does not repeat the delete.
+    return redirect(url_for("index"))
 
 
 if __name__ == "__main__":

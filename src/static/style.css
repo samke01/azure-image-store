@@ -248,6 +248,24 @@ h1 {
   border-color: var(--text-muted);
 }
 
+.btn-danger {
+  background: transparent;
+  border-color: var(--border-strong);
+  color: var(--danger);
+}
+
+.btn-danger:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.btn-icon {
+  flex: 0 0 auto;
+  padding-left: 0.6rem;
+  padding-right: 0.6rem;
+}
+
 /* ---------- Gallery grid ---------- */
 .gallery {
   display: grid;
@@ -354,6 +372,12 @@ h1 {
 
 .card-actions .btn {
   flex: 1;
+}
+
+/* The delete form wraps an icon button that should not stretch like the others. */
+.card-actions form {
+  display: flex;
+  flex: 0 0 auto;
 }
 
 /* ---------- Empty state ---------- */
