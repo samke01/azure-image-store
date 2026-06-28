@@ -29,13 +29,19 @@ AZP_AGENT_VERSION="${AZP_AGENT_VERSION:-3.246.0}"
 
 log() { printf '\n=== %s ===\n' "$1"; }
 
-# ---- 1. Azure CLI -----------------------------------------------------------
+# ---- 1. Agent prerequisites: Azure CLI + Python ----------------------------
 if ! command -v az >/dev/null 2>&1; then
   log "Installing Azure CLI"
   curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 else
   log "Azure CLI already present, skipping"
 fi
+
+# Python venv + pip so the pipeline's Test stage can install requirements and
+# run pytest.
+log "Installing Python tooling"
+sudo apt-get update -y
+sudo apt-get install -y python3-venv python3-pip
 
 # ---- 2. Download & extract --------------------------------------------------
 log "Using agent version ${AZP_AGENT_VERSION}"

@@ -8,6 +8,7 @@ trigger:
   paths:
     include:
       - src
+      - tests
       - azure-pipelines.yml
 
 pool:
@@ -26,8 +27,33 @@ variables:
   uamiClientId: agent-uami-client-id # GUID from terraform output agent_identity_client_id
 
 stages:
+  - stage: Test
+    displayName: Test
+    jobs:
+      - job: TestJob
+        displayName: Run backend tests
+        steps:
+          # A venv keeps test deps off the agent's system Python. python3-venv and
+          # python3-pip are installed on the agent by agent/setup-agent.sh.
+          - script: |
+              set -euo pipefail
+              python3 -m venv .venv
+              . .venv/bin/activate
+              python -m pip install --upgrade pip
+              pip install -r src/requirements.txt -r tests/requirements.txt
+              pytest --junitxml=$(Build.ArtifactStagingDirectory)/test-results.xml
+            displayName: Run pytest
+          - task: PublishTestResults@2
+            displayName: Publish test results
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: $(Build.ArtifactStagingDirectory)/test-results.xml
+              failTaskOnFailedTests: true
+
   - stage: Build
     displayName: Build
+    dependsOn: Test
     jobs:
       - job: BuildJob
         displayName: Package the app
@@ -64,10 +90,43 @@ stages:
               steps:
                 - script: |
                     az login --identity --username $(uamiClientId)
+                    # Start first: a stopped App Service makes --async false poll
+                    # "Starting the site..." forever. Idempotent if already running.
+                    az webapp start \
+                      --resource-group $(resourceGroup) \
+                      --name $(webAppName)
+                    # --track-status false skips the post-deploy runtime poll, which
+                    # hangs for minutes on Linux App Service even on a successful deploy.
                     az webapp deploy \
                       --resource-group $(resourceGroup) \
                       --name $(webAppName) \
                       --src-path $(Pipeline.Workspace)/drop/deploy.zip \
                       --type zip \
-                      --async false
+                      --async false \
+                      --track-status false
                   displayName: Deploy via agent's user-assigned managed identity
+
+                - script: |
+                    set -euo pipefail
+                    BASE="https://$(webAppName).azurewebsites.net"
+                    echo "Smoke testing $BASE"
+                    # Retry to absorb cold start after deploy (~up to 2.5 min per page).
+                    for path in / /upload; do
+                      url="$BASE$path"
+                      code=""
+                      for attempt in $(seq 1 10); do
+                        code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$url" || true)
+                        if [ "$code" = "200" ]; then
+                          echo "OK   $url -> $code"
+                          break
+                        fi
+                        echo "wait $url -> ${code:-no response} (attempt $attempt)"
+                        sleep 15
+                      done
+                      if [ "$code" != "200" ]; then
+                        echo "FAIL $url did not return 200 (last: ${code:-no response})"
+                        exit 1
+                      fi
+                    done
+                    echo "Smoke test passed."
+                  displayName: Smoke test the deployed app

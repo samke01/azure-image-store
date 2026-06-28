@@ -1,0 +1,2 @@
+# Test-only dependencies. The app's own runtime deps come from src/requirements.txt.
+pytest==8.3.4
