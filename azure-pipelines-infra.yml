@@ -1,0 +1,104 @@
+# Pipeline 1 of 2: infrastructure (Terraform) for the app layer.
+# Runs on a Microsoft-hosted agent (the app/ layer does not need the self hosted VM), and
+# authenticates to Azure with a Workload Identity Federation service connection, so no secret
+# is stored anywhere.
+#
+# PREREQUISITES (one-time, set up in Azure DevOps):
+#   1. The bootstrap/ and agent/ layers are already applied locally (state storage + the agent
+#      VM, identity and clouddevops-deployers group exist). This pipeline manages app/ only.
+#   2. A Workload Identity Federation ARM service connection whose service principal holds:
+#        - Contributor                       (create app resources)
+#        - User Access Administrator          (create the role assignments in app/rbac.tf)
+#        - Storage Blob Data Contributor      (on the tfstate storage account, for the backend)
+#   3. A variable group named "infra-vars" (Pipelines > Library) with the variables below.
+#   4. An environment named "infra-prod" (Pipelines > Environments) — add an approval check on
+#      it to gate `apply` behind a manual review.
+
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - app
+      - azure-pipelines-infra.yml
+
+pool:
+  vmImage: ubuntu-latest # Microsoft-hosted
+
+variables:
+  - group: infra-vars
+  # infra-vars must define:
+  #   azureServiceConnection  - name of the WIF ARM service connection
+  #   subscriptionId          - target Azure subscription ID
+  #   tfstateResourceGroup    - bootstrap output: state storage resource group
+  #   tfstateStorageAccount   - bootstrap output: state storage account
+  #   tfstateContainer        - bootstrap output: state container (e.g. tfstate)
+  #   tfstateKey              - state blob name for this layer (e.g. app.tfstate)
+  #   resourceGroupName       - app resource group (e.g. clouddevops-app-rg)
+  #   storageAccountName      - images storage base name
+  #   imagesContainerName     - images container (e.g. images)
+  #   appServicePlanName      - app service plan name
+  #   appServiceName          - web app base name
+  #   appServiceSku           - e.g. F1
+  #   location                - Azure region (e.g. spaincentral)
+  #   tags                    - HCL map literal, e.g. { course = "cloud-devops" }
+  #   deployersGroupObjectId  - agent output: terraform output deployers_group_object_id
+
+stages:
+  - stage: Terraform
+    displayName: Terraform (app layer)
+    jobs:
+      - deployment: InfraJob
+        displayName: Plan and apply app infrastructure
+        environment: infra-prod # approval check on this environment gates the apply
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self # deployment jobs do not check out by default
+                - task: AzureCLI@2
+                  displayName: terraform init / validate / plan / apply
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    addSpnToEnvironment: true # exposes servicePrincipalId / idToken / tenantId
+                    inlineScript: |
+                      set -euo pipefail
+
+                      # Terraform reads Azure auth from ARM_* env vars. Use the service
+                      # connection's OIDC token (no secret), for both the providers and the
+                      # azurerm state backend.
+                      export ARM_USE_OIDC=true
+                      export ARM_USE_AZUREAD=true
+                      export ARM_CLIENT_ID="$servicePrincipalId"
+                      export ARM_TENANT_ID="$tenantId"
+                      export ARM_OIDC_TOKEN="$idToken"
+                      export ARM_SUBSCRIPTION_ID="$(subscriptionId)"
+                      export TF_VAR_subscription_id="$(subscriptionId)"
+
+                      # Generate the tfvars (the committed terraform.tfvars is gitignored).
+                      cat > app/ci.tfvars <<EOF
+                      resource_group_name       = "$(resourceGroupName)"
+                      storage_account_name      = "$(storageAccountName)"
+                      images_container_name     = "$(imagesContainerName)"
+                      app_service_plan_name     = "$(appServicePlanName)"
+                      app_service_name          = "$(appServiceName)"
+                      app_service_sku           = "$(appServiceSku)"
+                      location                  = "$(location)"
+                      tags                      = $(tags)
+                      deployers_group_object_id = "$(deployersGroupObjectId)"
+                      EOF
+
+                      terraform -chdir=app init \
+                        -backend-config="subscription_id=$(subscriptionId)" \
+                        -backend-config="resource_group_name=$(tfstateResourceGroup)" \
+                        -backend-config="storage_account_name=$(tfstateStorageAccount)" \
+                        -backend-config="container_name=$(tfstateContainer)" \
+                        -backend-config="key=$(tfstateKey)"
+
+                      terraform -chdir=app fmt -check
+                      terraform -chdir=app validate
+                      terraform -chdir=app plan -var-file=ci.tfvars -out=tfplan
+                      terraform -chdir=app apply -auto-approve tfplan
