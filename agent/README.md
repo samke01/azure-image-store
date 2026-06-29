@@ -1,26 +1,26 @@
 # Self-hosted build agent blueprint
 
-Templates that turn the Ubuntu VM provisioned by `app/vm.tf` into the self-hosted
-Azure DevOps agent that `azure-pipelines.yml` runs on. `terraform apply` in `app/`
-creates the VM, its managed identity, the AD group and the role assignment, but it
-deliberately does **not** install or register the agent software. That registration
-is a one-time step, and these templates are how you run it.
+This folder is both the Terraform **agent layer** (the VM, its managed identity, and the
+`clouddevops-deployers` group) and the **scripts** that register that VM as the self-hosted
+Azure DevOps agent the app pipeline (`azure-pipelines-app.yml`) runs on. `terraform apply` in
+this folder creates the VM, but it deliberately does **not** install or register the agent
+software. That registration is a one-time step, and these scripts are how you run it.
 
-This is the Linux equivalent of the course's Windows `docs/Setup-BuildAgent.ps1.txt`.
+The registration is the Linux equivalent of the course's Windows `docs/Setup-BuildAgent.ps1.txt`.
 
 ## Files
 
 | File | Purpose |
 | ---- | ------- |
-| `setup-agent.sh` | Installs the Azure CLI, downloads the agent, registers it into the pool with a PAT, and runs it as a systemd service. Idempotent. |
+| `setup-agent.sh` | Installs the Azure CLI and Python tooling, downloads the agent, registers it into the pool with a PAT, and runs it as a systemd service. Idempotent. |
 | `agent.env.example` | Configuration template. Copy to `agent.env` (gitignored, holds the PAT) and fill in. |
 | `register-agent.ps1` | Pushes `setup-agent.sh` to the VM and runs it via `az vm run-command`, so no public IP or inbound SSH is needed. The recommended path. |
 
 ## Prerequisites
 
-- `az login`, and `terraform init` + `. .\set-env.ps1` already done in `app/` (so
-  `terraform output` can read the remote state).
-- An Azure DevOps **agent pool** named to match `azure-pipelines.yml`
+- `az login`, and the Terraform in this `agent/` folder already applied (`terraform init` +
+  `. .\set-env.ps1` + `apply`), so `terraform output` can resolve the VM's resource group.
+- An Azure DevOps **agent pool** whose name you also set in `azure-pipelines-app.yml`
   (`clouddevops-agents`), created under Organization Settings > Agent Pools.
 - An Azure DevOps **PAT** with the **Agent Pools (Read & manage)** scope. This is
   the one credential the managed-identity design does not eliminate. It only grants
@@ -64,4 +64,4 @@ bash setup-agent.sh
 - Azure DevOps > Organization Settings > Agent Pools > `clouddevops-agents` shows
   the agent **online**.
 - On the VM, `sudo ~azureuser/agent/svc.sh status` reports the service running.
-- A commit touching `src/` triggers the pipeline and it picks up on this agent.
+- A commit touching `src/` triggers the app pipeline (`azure-pipelines-app.yml`) and it picks up on this agent.
