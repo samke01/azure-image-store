@@ -1,0 +1,13 @@
+# Agent-specific values - copy to terraform.tfvars and fill in your values.
+# Shared values (subscription_id, location, tags) come from ../common.tfvars.
+
+resource_group_name = "clouddevops-agent-rg"
+
+# Optional: deploy the VM in a different region than the app (var.location).
+# Useful when the app's region has no Student-subscription VM quota (e.g. SpainCentral).
+# Leave unset to use var.location.
+# agent_vm_location = "westeurope"
+
+# SSH public key for the self hosted CI agent VM azureuser account.
+# Generate one with ssh-keygen -t ed25519 -f clouddevops-agent then paste the contents of clouddevops-agent.pub here. The matching private key is yours alone and must never be committed.
+agent_vm_ssh_public_key = "ssh-ed25519 AAAA... you@example.com"

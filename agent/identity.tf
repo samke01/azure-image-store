@@ -1,8 +1,11 @@
-# CI/CD deployment identity. The agent VM in vm.tf carries this user assigned identity, which belongs to an AD group that holds the deploy role (rbac.tf), so the pipeline can use az login --identity with no stored secret.
+# CI/CD deployment identity. The agent VM carries this user assigned identity, which belongs
+# to the clouddevops-deployers AD group. The app layer grants that group Website Contributor
+# on the web app (app/rbac.tf, via deployers_group_object_id), so the app pipeline can use
+# az login --identity with no stored secret.
 resource "azurerm_user_assigned_identity" "agent" {
   name                = "clouddevops-agent-uami"
-  resource_group_name = azurerm_resource_group.app.name
-  location            = azurerm_resource_group.app.location
+  resource_group_name = azurerm_resource_group.agent.name
+  location            = var.location
   tags                = var.tags
 }
 

@@ -2,7 +2,8 @@
 # without needing a public IP or inbound SSH: it uses `az vm run-command`, which
 # executes through the Azure control plane under your own `az login`.
 #
-# Prerequisites: az login, and 'terraform init' + '. .\set-env.ps1' done in app/.
+# Prerequisites: az login, and 'terraform init' + '. .\set-env.ps1' + apply done in this
+# agent/ layer (so terraform output can resolve the VM's resource group).
 # Reads config from agent.env (copy it from agent.env.example first).
 
 $ErrorActionPreference = "Stop"
@@ -27,8 +28,8 @@ foreach ($required in @("AZP_URL", "AZP_POOL", "AZP_TOKEN")) {
     }
 }
 
-# ---- Resolve the VM from Terraform state -----------------------------------
-Push-Location "$PSScriptRoot\..\app"
+# ---- Resolve the VM from Terraform state (this agent/ layer) ----------------
+Push-Location $PSScriptRoot
 try {
     $rgName = terraform output -raw resource_group_name
 }
@@ -36,9 +37,9 @@ finally {
     Pop-Location
 }
 if ([string]::IsNullOrWhiteSpace($rgName)) {
-    throw "terraform output returned nothing. Run 'terraform init' and '. .\set-env.ps1' inside app first."
+    throw "terraform output returned nothing. Run 'terraform init' + '. .\set-env.ps1' + apply in this agent/ folder first."
 }
-$vmName = "clouddevops-agent-vm" # matches azurerm_linux_virtual_machine.agent in app/vm.tf
+$vmName = "clouddevops-agent-vm" # matches azurerm_linux_virtual_machine.agent in agent/vm.tf
 
 # ---- Build the script: export config, then the setup script -----------------
 $exports = foreach ($key in $cfg.Keys) {

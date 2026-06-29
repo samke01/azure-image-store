@@ -7,9 +7,12 @@ resource "azurerm_role_assignment" "app_storage_blob_contributor" {
   principal_id         = azurerm_linux_web_app.main.identity[0].principal_id
 }
 
-# Least privilege for the pipeline. The deployers group can redeploy this one App Service and nothing else. Website Contributor allows code deploy but not infrastructure changes, so the pipeline can never run terraform apply, which stays a manual local step. The role sits on the AD group (identity.tf), not the agent identity.
+# Least privilege for the app pipeline. The deployers group can redeploy this one App Service
+# and nothing else. Website Contributor allows code deploy but not infrastructure changes. The
+# group itself lives in the agent layer (agent/identity.tf); its object id is passed in here via
+# var.deployers_group_object_id, so this layer never manages the deploy identity it depends on.
 resource "azurerm_role_assignment" "deployers_website_contributor" {
   scope                = azurerm_linux_web_app.main.id
   role_definition_name = "Website Contributor"
-  principal_id         = azuread_group.deployers.object_id
+  principal_id         = var.deployers_group_object_id
 }

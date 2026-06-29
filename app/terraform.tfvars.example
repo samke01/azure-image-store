@@ -16,6 +16,7 @@ app_service_name = "samkessproj-app"
 # F1 = free (sleeps when idle, 60 CPU-min/day). B1 (~€13/mo) for always-on.
 app_service_sku = "F1"
 
-# SSH public key for the self hosted CI agent VM azureuser account.
-# Generate one with ssh-keygen -t ed25519 -f clouddevops-agent then paste the contents of clouddevops-agent.pub here. The matching private key is yours alone and must never be committed.
-agent_vm_ssh_public_key = "ssh-ed25519 AAAA... you@example.com"
+# Object ID of the clouddevops-deployers AD group, created by the agent layer.
+# Get it with: cd ../agent && terraform output -raw deployers_group_object_id
+# (The infra pipeline supplies this as the deployersGroupObjectId variable.)
+deployers_group_object_id = "00000000-0000-0000-0000-000000000000"

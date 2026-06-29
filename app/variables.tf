@@ -51,9 +51,9 @@ variable "app_service_sku" {
   default     = "F1"
 }
 
-# CI/CD agent
+# CI/CD agent (the agent infrastructure itself lives in the agent/ layer)
 
-variable "agent_vm_ssh_public_key" {
+variable "deployers_group_object_id" {
   type        = string
-  description = "SSH public key in OpenSSH format for the self hosted CI agent VM azureuser account. Used only for occasional bootstrap or troubleshooting, since the VM has no public IP and no inbound SSH rule. Never commit the matching private key."
+  description = "Object ID of the clouddevops-deployers AD group, from the agent layer output (terraform output deployers_group_object_id). Used to grant the group Website Contributor on the web app so the app pipeline can deploy."
 }
